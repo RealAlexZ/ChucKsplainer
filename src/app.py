@@ -63,7 +63,7 @@ def get_vectorstore(text_chunks, metadatas):
     return vectorstore
 
 def get_conversation_chain(vectorstore):
-    llm = ChatOpenAI()
+    llm = ChatOpenAI(model_name="gpt-4o")
     memory = ConversationBufferMemory(
         memory_key='chat_history', return_messages=True)
     retriever = vectorstore.as_retriever(search_kwargs={'k': 5})
