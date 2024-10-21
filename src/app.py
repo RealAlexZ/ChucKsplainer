@@ -1,48 +1,75 @@
 import streamlit as st
 from dotenv import load_dotenv
 from pathlib import Path
+from bs4 import BeautifulSoup
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
+from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from html_templates import css, bot_template, user_template
-from langchain.llms import HuggingFaceHub
 
-def process_chuck_scripts():
-    text = ""
-    # Get all .ck files in the docs/ directory
-    chuck_files = Path('docs/').rglob('*.ck')
+def process_chuck_files():
+    texts = []
+    metadatas = []
+
+    # Process code files (.ck files)
+    chuck_files = Path('docs/chuck_scripts/').rglob('*.ck')
     for file in chuck_files:
         with open(file, 'r', encoding='utf-8') as f:
-            text += f.read() + '\n'
-    return text
+            text = f.read()
+            texts.append(text)
+            metadatas.append({'source': 'code', 'file': str(file)})
 
-def get_text_chunks(text):
+    # Process documentation files (.html files)
+    # html_files = Path('docs/html_files/').rglob('*.html')
+    # for file in html_files:
+    #     with open(file, 'r', encoding='utf-8') as f:
+    #         html_content = f.read()
+    #         # Extract text from HTML
+    #         soup = BeautifulSoup(html_content, 'html.parser')
+    #         text = soup.get_text(separator='\n')
+    #         texts.append(text)
+    #         metadatas.append({'source': 'documentation', 'file': str(file)})
+
+    return texts, metadatas
+
+def get_text_chunks(texts, metadatas):
     text_splitter = CharacterTextSplitter(
         separator="\n",
         chunk_size=1000,
         chunk_overlap=200,
         length_function=len
     )
-    chunks = text_splitter.split_text(text)
-    return chunks
 
-def get_vectorstore(text_chunks):
+    chunks = []
+    chunk_metadatas = []
+
+    for text, metadata in zip(texts, metadatas):
+        splits = text_splitter.split_text(text)
+        chunks.extend(splits)
+        chunk_metadatas.extend([metadata] * len(splits))
+
+    return chunks, chunk_metadatas
+
+def get_vectorstore(text_chunks, metadatas):
     embeddings = OpenAIEmbeddings()
-    # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+    vectorstore = FAISS.from_texts(
+        texts=text_chunks,
+        embedding=embeddings,
+        metadatas=metadatas
+    )
     return vectorstore
 
 def get_conversation_chain(vectorstore):
     llm = ChatOpenAI()
-    # llm = HuggingFaceHub(repo_id="google/flan-t5-xxl", model_kwargs={"temperature":0.5, "max_length":512"})
     memory = ConversationBufferMemory(
         memory_key='chat_history', return_messages=True)
+    retriever = vectorstore.as_retriever(search_kwargs={'k': 5})
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
-        retriever=vectorstore.as_retriever(),
+        retriever=retriever,
         memory=memory
     )
     return conversation_chain
@@ -74,15 +101,15 @@ def main():
 
     # Check if the conversation chain is initialized
     if st.session_state.conversation is None:
-        with st.spinner("Processing ChucK files..."):
-            # Get text from ChucK files
-            raw_text = process_chuck_scripts()
+        with st.spinner("Loading..."):
+            # Get text and metadata from ChucK files and documentation
+            texts, metadatas = process_chuck_files()
 
-            # Get the text chunks
-            text_chunks = get_text_chunks(raw_text)
+            # Get the text chunks and their corresponding metadata
+            text_chunks, chunk_metadatas = get_text_chunks(texts, metadatas)
 
             # Create vector store
-            vectorstore = get_vectorstore(text_chunks)
+            vectorstore = get_vectorstore(text_chunks, chunk_metadatas)
 
             # Create conversation chain
             st.session_state.conversation = get_conversation_chain(vectorstore)
