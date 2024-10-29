@@ -1,3 +1,4 @@
+import os 
 import streamlit as st
 from dotenv import load_dotenv
 from pathlib import Path
@@ -7,31 +8,32 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationalRetrievalChain
+from langchain.chains import LLMChain
+from langchain.prompts import PromptTemplate
 from html_templates import css, bot_template, user_template
 
-def process_chuck_files():
+def process_files():
     texts = []
     metadatas = []
 
     # Process code files (.ck files)
-    chuck_files = Path('docs/chuck_scripts/').rglob('*.ck')
-    for file in chuck_files:
+    code_snippets = Path('docs/code_snippets/').rglob('*.ck')
+    for file in code_snippets:
         with open(file, 'r', encoding='utf-8') as f:
             text = f.read()
             texts.append(text)
             metadatas.append({'source': 'code', 'file': str(file)})
 
     # Process documentation files (.html files)
-    # html_files = Path('docs/html_files/').rglob('*.html')
-    # for file in html_files:
-    #     with open(file, 'r', encoding='utf-8') as f:
-    #         html_content = f.read()
-    #         # Extract text from HTML
-    #         soup = BeautifulSoup(html_content, 'html.parser')
-    #         text = soup.get_text(separator='\n')
-    #         texts.append(text)
-    #         metadatas.append({'source': 'documentation', 'file': str(file)})
+    html_files = Path('docs/html_files/').rglob('*.html')
+    for file in html_files:
+        with open(file, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+            # Extract text from HTML
+            soup = BeautifulSoup(html_content, 'html.parser')
+            text = soup.get_text(separator='\n')
+            texts.append(text)
+            metadatas.append({'source': 'documentation', 'file': str(file)})
 
     return texts, metadatas
 
@@ -53,38 +55,64 @@ def get_text_chunks(texts, metadatas):
 
     return chunks, chunk_metadatas
 
-def get_vectorstore(text_chunks, metadatas):
+def create_and_save_vectorstore(text_chunks, metadatas):
     embeddings = OpenAIEmbeddings()
     vectorstore = FAISS.from_texts(
         texts=text_chunks,
         embedding=embeddings,
         metadatas=metadatas
     )
+    vectorstore.save_local("faiss_index")
     return vectorstore
 
-def get_conversation_chain(vectorstore):
-    llm = ChatOpenAI(model_name="gpt-4o")
-    memory = ConversationBufferMemory(
-        memory_key='chat_history', return_messages=True)
-    retriever = vectorstore.as_retriever(search_kwargs={'k': 5})
-    conversation_chain = ConversationalRetrievalChain.from_llm(
-        llm=llm,
-        retriever=retriever,
-        memory=memory
+def load_vectorstore():
+    embeddings = OpenAIEmbeddings()
+    vectorstore = FAISS.load_local("faiss_index", embeddings)
+    return vectorstore
+
+def get_llm_chain():
+    llm = ChatOpenAI(model_name="gpt-4")
+    prompt_template = """
+        You are an AI assistant that provides code snippets and explanations based on the user's question.
+        Use the following retrieved content (code snippets and documentation) to help answer the question.
+        If you provide any code, make sure it is properly formatted.
+
+        Question: {question}
+
+        Retrieved Content:
+        {retrieved_chunks}
+
+        Answer:
+    """
+    prompt = PromptTemplate(
+        input_variables=["question", "retrieved_chunks"],
+        template=prompt_template
     )
-    return conversation_chain
+    llm_chain = LLMChain(llm=llm, prompt=prompt)
+    return llm_chain
 
 def handle_userinput(user_question):
-    response = st.session_state.conversation({'question': user_question})
-    st.session_state.chat_history = response['chat_history']
+    # Retrieve relevant chunks
+    docs = st.session_state.vectorstore.similarity_search(
+        query=user_question, k=5)
+    retrieved_chunks = "\n\n".join([doc.page_content for doc in docs])
 
-    for i, message in enumerate(st.session_state.chat_history):
-        if i % 2 == 0:
+    # Generate response using the retrieved chunks
+    llm_chain = get_llm_chain()
+    response = llm_chain.run(question=user_question, retrieved_chunks=retrieved_chunks)
+
+    # Update chat history
+    st.session_state.chat_history.append({"role": "user", "content": user_question})
+    st.session_state.chat_history.append({"role": "assistant", "content": response})
+
+    # Display chat history
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
             st.write(user_template.replace(
-                "{{MSG}}", message.content), unsafe_allow_html=True)
+                "{{MSG}}", message["content"]), unsafe_allow_html=True)
         else:
             st.write(bot_template.replace(
-                "{{MSG}}", message.content), unsafe_allow_html=True)
+                "{{MSG}}", message["content"]), unsafe_allow_html=True)
 
 def main():
     load_dotenv()
@@ -94,27 +122,30 @@ def main():
 
     st.header("ChucKsplainer")
 
-    if "conversation" not in st.session_state:
-        st.session_state.conversation = None
+    if "vectorstore" not in st.session_state:
+        st.session_state.vectorstore = None
     if "chat_history" not in st.session_state:
-        st.session_state.chat_history = None
+        st.session_state.chat_history = []
 
-    # Check if the conversation chain is initialized
-    if st.session_state.conversation is None:
-        with st.spinner("Loading..."):
-            # Get text and metadata from ChucK files and documentation
-            texts, metadatas = process_chuck_files()
+    # Initialize vectorstore
+    if st.session_state.vectorstore is None:
+        with st.spinner("Loading vectorstore..."):
+            # Check if vectorstore exists
+            if Path("faiss_index").exists():
+                # Load the vectorstore from disk
+                st.session_state.vectorstore = load_vectorstore()
+            else:
+                # Get text and metadata from code snippets and documentation
+                texts, metadatas = process_files()
 
-            # Get the text chunks and their corresponding metadata
-            text_chunks, chunk_metadatas = get_text_chunks(texts, metadatas)
+                # Get the text chunks and their corresponding metadata
+                text_chunks, chunk_metadatas = get_text_chunks(texts, metadatas)
 
-            # Create vector store
-            vectorstore = get_vectorstore(text_chunks, chunk_metadatas)
+                # Create vector store and save it to disk
+                st.session_state.vectorstore = create_and_save_vectorstore(
+                    text_chunks, chunk_metadatas)
 
-            # Create conversation chain
-            st.session_state.conversation = get_conversation_chain(vectorstore)
-
-    user_question = st.chat_input("Message ChucKsplainer")
+    user_question = st.chat_input("Message AI")
     if user_question:
         handle_userinput(user_question)
 
