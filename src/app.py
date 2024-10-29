@@ -4,12 +4,9 @@ from dotenv import load_dotenv
 from pathlib import Path
 from bs4 import BeautifulSoup
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chat_models import ChatOpenAI
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from anthropic import Anthropic
 from html_templates import css, bot_template, user_template
 
 def process_files():
@@ -67,15 +64,18 @@ def create_and_save_vectorstore(text_chunks, metadatas):
 
 def load_vectorstore():
     embeddings = OpenAIEmbeddings()
-    vectorstore = FAISS.load_local("faiss_index", embeddings)
+    vectorstore = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     return vectorstore
 
 def get_llm_chain():
-    llm = ChatOpenAI(model_name="gpt-4")
+    client = Anthropic()
+    
     prompt_template = """
-        You are an AI assistant that provides code snippets and explanations based on the user's question.
+        You are an instructor that specializes in the ChucK programming language. 
+        You provide both correct code snippets and detailed explanations based on the user's question.
         Use the following retrieved content (code snippets and documentation) to help answer the question.
-        If you provide any code, make sure it is properly formatted.
+        If you provide any code, make sure it is properly formatted, especially value assignment (`=>` and `@=>`).
+        If you need to use classes defined in code snippets, make sure to copy the definition of the class.
 
         Question: {question}
 
@@ -84,12 +84,24 @@ def get_llm_chain():
 
         Answer:
     """
-    prompt = PromptTemplate(
-        input_variables=["question", "retrieved_chunks"],
-        template=prompt_template
-    )
-    llm_chain = LLMChain(llm=llm, prompt=prompt)
-    return llm_chain
+    
+    class AnthropicChain:
+        def __init__(self, client, prompt_template):
+            self.client = client
+            self.prompt_template = prompt_template
+            
+        def run(self, **kwargs):
+            formatted_prompt = self.prompt_template.format(**kwargs)
+            response = self.client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=2048,
+                messages=[
+                    {"role": "user", "content": formatted_prompt}
+                ]
+            )
+            return response.content[0].text
+
+    return AnthropicChain(client, prompt_template)
 
 def handle_userinput(user_question):
     # Retrieve relevant chunks
