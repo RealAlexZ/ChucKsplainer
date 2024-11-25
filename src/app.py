@@ -8,6 +8,8 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from anthropic import Anthropic
 from html_templates import css, bot_template, user_template
+from agents import ProgrammerAgent, TestDesignerAgent, TestExecutorAgent
+import time
 
 def process_files():
     texts = []
@@ -67,41 +69,77 @@ def load_vectorstore():
     vectorstore = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     return vectorstore
 
-def get_llm_chain():
+def get_agents():
     client = Anthropic()
+    programmer = ProgrammerAgent(client)
+    test_designer = TestDesignerAgent(client)
+    test_executor = TestExecutorAgent()
+    return programmer, test_designer, test_executor
+
+def handle_code_generation(question, retrieved_chunks):
+    # Get the agents
+    programmer, test_designer, test_executor = get_agents()
     
-    prompt_template = """
-        You are an instructor that specializes in the ChucK programming language. 
-        You provide both correct code snippets and detailed explanations based on the user's question.
-        Use the following retrieved content (code snippets and documentation) to help answer the question.
-        If you provide any code, make sure it is properly formatted, especially value assignment (`=>` and `@=>`).
-        If you need to use classes defined in code snippets, make sure to copy the definition of the class.
-
-        Question: {question}
-
-        Retrieved Content:
-        {retrieved_chunks}
-
-        Answer:
+    # Create a task description that includes the retrieved context
+    task_description = f"""
+    Task: {question}
+    
+    Available Context and Documentation:
+    {retrieved_chunks}
     """
     
-    class AnthropicChain:
-        def __init__(self, client, prompt_template):
-            self.client = client
-            self.prompt_template = prompt_template
-            
-        def run(self, **kwargs):
-            formatted_prompt = self.prompt_template.format(**kwargs)
-            response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=2048,
-                messages=[
-                    {"role": "user", "content": formatted_prompt}
-                ]
-            )
-            return response.content[0].text
-
-    return AnthropicChain(client, prompt_template)
+    # Generate initial code
+    code = programmer.generate_code(task_description)
+    
+    # Generate test cases
+    test_cases = test_designer.generate_test_cases(task_description)
+    
+    # Execute and test the code
+    feedback = test_executor.execute_code_with_tests(code, test_cases)
+    
+    # If there are errors, try to refine the code
+    max_attempts = 3
+    attempt = 1
+    
+    while "error" in feedback.lower() and attempt < max_attempts:
+        # Update task description with error feedback
+        task_description = f"""
+        Task: {question}
+        
+        Previous Code:
+        {code}
+        
+        Error Feedback:
+        {feedback}
+        
+        Available Context and Documentation:
+        {retrieved_chunks}
+        
+        Please fix the code based on the error feedback.
+        """
+        
+        # Generate refined code
+        code = programmer.generate_code(task_description)
+        feedback = test_executor.execute_code_with_tests(code, test_cases)
+        attempt += 1
+    
+    # Prepare the response
+    response = f"""
+    Generated ChucK Code:
+    ```chuck
+    {code}
+    ```
+    
+    Test Cases:
+    ```chuck
+    {test_cases}
+    ```
+    
+    Execution Result:
+    {feedback}
+    """
+    
+    return response
 
 def handle_userinput(user_question):
     # Retrieve relevant chunks
@@ -109,22 +147,31 @@ def handle_userinput(user_question):
         query=user_question, k=5)
     retrieved_chunks = "\n\n".join([doc.page_content for doc in docs])
 
-    # Generate response using the retrieved chunks
-    llm_chain = get_llm_chain()
-    response = llm_chain.run(question=user_question, retrieved_chunks=retrieved_chunks)
+    # Display user message immediately
+    st.write(user_template.replace(
+        "{{MSG}}", user_question), unsafe_allow_html=True)
+
+    # Create placeholder for AI response
+    response_placeholder = st.empty()
+    
+    # Generate response using the multi-agent system
+    response = handle_code_generation(user_question, retrieved_chunks)
+
+    # Display AI response with typing effect
+    for i in range(len(response) + 1):
+        response_placeholder.write(bot_template.replace(
+            "{{MSG}}", response[:i] + "▌"
+        ), unsafe_allow_html=True)
+        time.sleep(0.01)  # Adjust speed as needed
+    
+    # Final message without cursor
+    response_placeholder.write(bot_template.replace(
+        "{{MSG}}", response
+    ), unsafe_allow_html=True)
 
     # Update chat history
     st.session_state.chat_history.append({"role": "user", "content": user_question})
     st.session_state.chat_history.append({"role": "assistant", "content": response})
-
-    # Display chat history
-    for message in st.session_state.chat_history:
-        if message["role"] == "user":
-            st.write(user_template.replace(
-                "{{MSG}}", message["content"]), unsafe_allow_html=True)
-        else:
-            st.write(bot_template.replace(
-                "{{MSG}}", message["content"]), unsafe_allow_html=True)
 
 def main():
     load_dotenv()
@@ -133,6 +180,22 @@ def main():
     st.write(css, unsafe_allow_html=True)
 
     st.header("ChucKsplainer")
+    
+    # Add welcome message with typing animation
+    welcome_placeholder = st.empty()
+    welcome_message = "Hi! I am ChucKsplainer, your personal ChucK tutor. I can explain code examples, help you understand ChucK concepts, and even generate and test code for you. Let's chat and ChucK!"
+    
+    # Simulate typing effect
+    for i in range(len(welcome_message) + 1):
+        welcome_placeholder.write(bot_template.replace(
+            "{{MSG}}", welcome_message[:i] + "▌"
+        ), unsafe_allow_html=True)
+        time.sleep(0.01)  # Adjust speed as needed
+    
+    # Final message without cursor
+    welcome_placeholder.write(bot_template.replace(
+        "{{MSG}}", welcome_message
+    ), unsafe_allow_html=True)
 
     if "vectorstore" not in st.session_state:
         st.session_state.vectorstore = None
@@ -157,7 +220,7 @@ def main():
                 st.session_state.vectorstore = create_and_save_vectorstore(
                     text_chunks, chunk_metadatas)
 
-    user_question = st.chat_input("Message AI")
+    user_question = st.chat_input("Message ChucKsplainer")
     if user_question:
         handle_userinput(user_question)
 
