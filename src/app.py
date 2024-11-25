@@ -76,7 +76,7 @@ def get_agents():
     test_executor = TestExecutorAgent()
     return programmer, test_designer, test_executor
 
-def handle_code_generation(question, retrieved_chunks):
+def handle_code_generation(question, retrieved_chunks, show_tests=False):
     # Get the agents
     programmer, test_designer, test_executor = get_agents()
     
@@ -91,8 +91,10 @@ def handle_code_generation(question, retrieved_chunks):
     # Generate initial code
     code = programmer.generate_code(task_description)
     
-    # Generate test cases
-    test_cases = test_designer.generate_test_cases(task_description)
+    # Generate test cases only if show_tests is True
+    test_cases = ""
+    if show_tests:
+        test_cases = test_designer.generate_test_cases(task_description)
     
     # Execute and test the code
     feedback = test_executor.execute_code_with_tests(code, test_cases)
@@ -123,21 +125,29 @@ def handle_code_generation(question, retrieved_chunks):
         feedback = test_executor.execute_code_with_tests(code, test_cases)
         attempt += 1
     
-    # Prepare the response
-    response = f"""
-    Generated ChucK Code:
-    ```chuck
-    {code}
-    ```
-    
-    Test Cases:
-    ```chuck
-    {test_cases}
-    ```
-    
-    Execution Result:
-    {feedback}
-    """
+    # Prepare the response based on show_tests flag
+    if show_tests:
+        response = f"""
+        Generated ChucK Code:
+        ```chuck
+        {code}
+        ```
+        
+        Test Cases:
+        ```chuck
+        {test_cases}
+        ```
+        
+        Execution Result:
+        {feedback}
+        """
+    else:
+        response = f"""
+        Generated ChucK Code:
+        ```chuck
+        {code}
+        ```
+        """
     
     return response
 
