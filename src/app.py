@@ -181,42 +181,52 @@ def main():
 
     st.header("ChucKsplainer")
     
-    # Add welcome message with typing animation
-    welcome_placeholder = st.empty()
-    welcome_message = "Hi! I am ChucKsplainer, your personal ChucK tutor. I can explain code examples, help you understand ChucK concepts, and even generate and test code for you. Let's chat and ChucK!"
+    # Initialize chat history if not exists
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = [{
+            "role": "assistant",
+            "content": "Hi! I'm ChucKsplainer, your personal ChucK tutor. I'm here to help you understand ChucK concepts, walk you through examples, and even generate and test ChucK code for your projects. Let's chat and ChucK!"
+        }]
+        st.session_state.welcome_shown = False
     
-    # Simulate typing effect
-    for i in range(len(welcome_message) + 1):
-        welcome_placeholder.write(bot_template.replace(
-            "{{MSG}}", welcome_message[:i] + "▌"
-        ), unsafe_allow_html=True)
-        time.sleep(0.01)  # Adjust speed as needed
-    
-    # Final message without cursor
-    welcome_placeholder.write(bot_template.replace(
-        "{{MSG}}", welcome_message
-    ), unsafe_allow_html=True)
-
+    # Initialize vectorstore if not exists
     if "vectorstore" not in st.session_state:
         st.session_state.vectorstore = None
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+
+    # Create a container for chat history
+    chat_container = st.container()
+    
+    # Display chat history in the container
+    with chat_container:
+        for i, message in enumerate(st.session_state.chat_history):
+            if message["role"] == "user":
+                st.write(user_template.replace(
+                    "{{MSG}}", message["content"]), unsafe_allow_html=True)
+            else:
+                # Only show typing effect for welcome message if not shown before
+                if i == 0 and not st.session_state.welcome_shown:
+                    placeholder = st.empty()
+                    for j in range(len(message["content"]) + 1):
+                        placeholder.write(bot_template.replace(
+                            "{{MSG}}", message["content"][:j] + "▌"
+                        ), unsafe_allow_html=True)
+                        time.sleep(0.01)
+                    placeholder.write(bot_template.replace(
+                        "{{MSG}}", message["content"]
+                    ), unsafe_allow_html=True)
+                    st.session_state.welcome_shown = True
+                else:
+                    st.write(bot_template.replace(
+                        "{{MSG}}", message["content"]), unsafe_allow_html=True)
 
     # Initialize vectorstore
     if st.session_state.vectorstore is None:
         with st.spinner("Loading vectorstore..."):
-            # Check if vectorstore exists
             if Path("faiss_index").exists():
-                # Load the vectorstore from disk
                 st.session_state.vectorstore = load_vectorstore()
             else:
-                # Get text and metadata from code snippets and documentation
                 texts, metadatas = process_files()
-
-                # Get the text chunks and their corresponding metadata
                 text_chunks, chunk_metadatas = get_text_chunks(texts, metadatas)
-
-                # Create vector store and save it to disk
                 st.session_state.vectorstore = create_and_save_vectorstore(
                     text_chunks, chunk_metadatas)
 
