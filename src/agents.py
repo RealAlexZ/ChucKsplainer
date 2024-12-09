@@ -4,8 +4,32 @@ class ProgrammerAgent:
     def __init__(self, client):
         self.client = client
         self.prompt_template = """
-            Generate ChucK code for the following task:
-            {task_description}
+        Let's approach generating ChucK code step by step:
+
+        1. First, analyze the task requirements:
+        {task_description}
+
+        2. Break down the audio processing components needed:
+        - What UGens (Unit Generators) are required?
+        - What signal chain should we create?
+        - What parameters need to be configured?
+
+        3. Consider the timing and synchronization:
+        - What tempo or timing structures are needed?
+        - Are there any event-based triggers required?
+
+        4. Plan the code structure:
+        - What variables need to be declared?
+        - What functions might be helpful?
+        - How should we organize the main loop?
+
+        Based on this analysis, please generate ChucK code that:
+        - Is well-commented
+        - Uses appropriate UGens and signal chains
+        - Handles timing correctly
+        - Follows ChucK best practices
+
+        Generate the code:
         """
 
     def generate_code(self, task_description):
@@ -23,8 +47,36 @@ class TestDesignerAgent:
     def __init__(self, client):
         self.client = client
         self.prompt_template = """
-            Generate test cases for the following ChucK code task:
-            {task_description}
+        Let's design comprehensive test cases for this ChucK code task step by step:
+
+        1. Analyze the requirements:
+        {task_description}
+
+        2. Consider these testing aspects:
+        - Audio output verification
+        - Timing accuracy
+        - Parameter ranges
+        - Edge cases
+        - Resource usage
+
+        3. Design test cases that verify:
+        - Basic functionality
+        - Error handling
+        - Performance under different conditions
+        - Integration with other UGens
+
+        4. Structure the tests to check:
+        - Initial setup
+        - Runtime behavior
+        - Cleanup and resource management
+
+        Based on this analysis, generate test cases that:
+        - Are comprehensive yet focused
+        - Include expected outputs
+        - Cover edge cases
+        - Can be automated
+
+        Generate the test cases:
         """
 
     def generate_test_cases(self, task_description):
