@@ -92,16 +92,62 @@ class TestDesignerAgent:
 
 class TestExecutorAgent:
     def execute_code_with_tests(self, code, test_cases):
-        # Save the code and test cases to a temporary file
-        with open("temp_code.ck", "w") as f:
-            f.write(code)
-            f.write("\n")
-            f.write(test_cases)
-
-        # Execute the ChucK code and capture the output
-        result = subprocess.run(["chuck", "temp_code.ck"], capture_output=True, text=True)
-
-        # Check for errors in the output
-        if result.returncode != 0:
-            return result.stderr
-        return "All tests passed"
+        """Execute ChucK code and tests with proper error handling and feedback"""
+        
+        # Step 1: Validate inputs
+        if not code.strip():
+            return "Error: No code provided to execute"
+            
+        # Step 2: Create temporary files
+        try:
+            # Main code file
+            with open("temp_code.ck", "w") as f:
+                f.write(code)
+            
+            # Test file if tests are provided
+            test_file = None
+            if test_cases.strip():
+                with open("temp_tests.ck", "w") as f:
+                    f.write(test_cases)
+                test_file = "temp_tests.ck"
+            
+            # Step 3: Execute main code
+            result = subprocess.run(
+                ["chuck", "--silent", "temp_code.ck"],
+                capture_output=True,
+                text=True,
+                timeout=30  # Prevent infinite loops
+            )
+            
+            # Step 4: Check for errors in main code
+            if result.returncode != 0:
+                return f"Code Execution Error:\n{result.stderr}"
+                
+            # Step 5: Execute tests if provided
+            if test_file:
+                test_result = subprocess.run(
+                    ["chuck", "--silent", test_file],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                
+                if test_result.returncode != 0:
+                    return f"Test Execution Error:\n{test_result.stderr}"
+                    
+                return f"Code executed successfully.\nTest Results:\n{test_result.stdout}"
+            
+            return "Code executed successfully"
+            
+        except subprocess.TimeoutExpired:
+            return "Error: Code execution timed out (30s limit)"
+        except Exception as e:
+            return f"Error during execution: {str(e)}"
+        finally:
+            # Step 6: Cleanup
+            for file in ["temp_code.ck", "temp_tests.ck"]:
+                try:
+                    if os.path.exists(file):
+                        os.remove(file)
+                except:
+                    pass

@@ -1,67 +1,48 @@
-I'll help create a techno bass sound panned to the left. Here's a well-structured solution:
+Based on the requirements and available documentation, I'll create a techno bass sound panned to the left. Here's the code with detailed comments:
 
 ```chuck
-// Techno bass generator with left panning
-// Set up basic oscillator for bass sound
-SinOsc bass => ADSR env => Pan2 panner => dac;
-SawOsc harmonics => env;
-
-// Configure ADSR envelope
-env.set(10::ms, 50::ms, 0.5, 100::ms);
-
-// Set pan position to left (-1.0)
--1.0 => panner.pan;
+// Create a basic techno bass using SqrOsc (square wave oscillator)
+SqrOsc bass => LPF filter => Pan2 panner => dac;
 
 // Set up basic parameters
-0.4 => bass.gain;    // Main bass gain
-0.2 => harmonics.gain; // Harmonic content gain
+120 => float tempo;
+(60.0/tempo)::second => dur beat;
 
-// Bass note frequency (low G)
-49.0 => float baseFreq;
-std.mtof(baseFreq) => bass.freq;
-std.mtof(baseFreq + 12) => harmonics.freq; // One octave up for harmonics
+// Configure the bass sound
+50.0 => bass.freq;  // Low frequency for bass
+0.7 => bass.gain;   // Set volume
 
-// Timing variables
-140 => float bpm; // Techno tempo
-(60.0/bpm)::second => dur beat;
-beat/2 => dur stepTime; // Sixteenth notes
+// Configure filter for classic techno sound
+100.0 => filter.freq;
+5.0 => filter.Q;    // Resonance for more character
 
-// Main performance loop
+// Pan to the left (-1.0 is hard left, 1.0 is hard right)
+-0.8 => panner.pan; // Slightly off hard left for more natural sound
+
+// Main loop for the bassline pattern
 while(true) {
-    // Trigger note
-    1 => env.keyOn;
+    // Basic techno pattern
+    1 => bass.gain;
+    0.125::beat => now;
+    0 => bass.gain;
+    0.125::beat => now;
     
-    // Hold for attack and decay
-    stepTime/2 => now;
-    
-    // Release
-    1 => env.keyOff;
-    
-    // Wait for rest of step
-    stepTime/2 => now;
-    
-    // Slightly vary the harmonic content for movement
-    Math.random2f(0.15, 0.25) => harmonics.gain;
+    // Add some filter sweep for movement
+    Math.sin(now/second * 2.0) * 500.0 + 800.0 => filter.freq;
 }
 ```
 
 This code:
-1. Creates a techno bass using a combination of sine and saw waves for richer timbre
-2. Uses ADSR envelope for shaping the sound
-3. Pans the sound to the left using Pan2
-4. Runs at 140 BPM (typical techno tempo)
-5. Creates a rhythmic pattern using sixteenth notes
-6. Adds subtle variation to the harmonic content for movement
-
-The sound is:
-- Rich (combination of sine and saw waves)
-- Deep (based on low G)
-- Rhythmic (sixteenth note pattern)
-- Left-panned (Pan2 set to -1.0)
-- Dynamic (ADSR envelope shaping)
+1. Creates a signal chain using a square wave oscillator (SqrOsc) for the bass sound
+2. Adds a low-pass filter (LPF) for tone shaping
+3. Uses Pan2 to position the sound in the stereo field
+4. Creates a basic techno rhythm pattern
+5. Includes filter modulation for movement
 
 You can modify parameters like:
-- `baseFreq` for different bass notes
-- `bpm` for different tempos
-- Envelope settings for different attack/decay characteristics
-- Oscillator gains for different timbres
+- `tempo` for different speeds
+- `bass.freq` for different bass notes
+- `filter.freq` and `filter.Q` for different timbres
+- `panner.pan` for different stereo positions
+
+The bassline will play continuously with a typical techno rhythm and filter sweep for added movement.
