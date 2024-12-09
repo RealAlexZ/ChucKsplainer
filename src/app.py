@@ -143,10 +143,7 @@ def handle_code_generation(question, retrieved_chunks, show_tests=False):
         """
     else:
         response = f"""
-        Generated ChucK Code:
-        ```chuck
         {code}
-        ```
         """
     
     return response
