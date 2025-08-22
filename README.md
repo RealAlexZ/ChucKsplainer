@@ -1,22 +1,14 @@
-# 3D Modeling of Musical Instruments
+# ChucKsplainer
 
-## Design 1: Teenage Erhu  
-**Designed in Rhinoceros 3D**
+ChucKsplainer is a Web-based chatbot that teaches ChucK—a programming language for music creation—by helping students explore, understand, and complete ChucK code. This platform democratizes educational resources for both computer science and music education.
 
-<img width="1152" height="720" alt="3d-design-1" src="https://github.com/user-attachments/assets/64bee6c0-81ca-44f2-bc6b-9f28e039fb80" />
+<img width="2106" height="" alt="chucksplainer-1" src="https://github.com/user-attachments/assets/d6aa8c1f-8eed-4400-a250-39ffbdc30030" />
 
-The Teenage Erhu (left) is a performance piece as much as it is a musical instrument. Inspired by Erhu #2524 from the University of Michigan’s Stearns Collection (right), it reimagines the Erhu, the ancient Chinese two-stringed fiddle. Its bright and often times squeaky timbre embraces imperfection as central to its aesthetics.  
+ChucKsplainer consists of three specialized agents working in tandem—one for code exploration, explanation, and completion; one for test case generation; and one for test case execution. The first agent responsible for response generation also performs Retrieval-Augmented Generation (RAG) on a comprehensive corpus of materials to ensure response validity. These sources include code examples and documentation on variable types, syntaxes, and functions acquired from ChucK’s official website. In addition, the agents are configured with chain-of-thought (CoT) prompting. These extensive prompts align ChucKsplainer’s output with the expertise of human instructors to cultivate engaging learning experiences.
 
-Standing at 60 cm tall, the Teenage Erhu is crafted with a modular design; individually printed sound box, head, and pegs enables further personal customization. Its neck, a simple wooden dowel, grounds the instrument’s digital fabrication. The classic snakeskin membrane gives way to a carefully engineered and environmentally friendly synthetic layer.
+<img width="3241" height="" alt="chucksplainer-2" src="https://github.com/user-attachments/assets/f612dfcf-c002-4736-affe-5a50ce27d072" />
 
-
-## Design 2: Saxophone Mouthpiece  
-**Designed in Rhinoceros 3D**
-
-<img width="831" height="418" alt="3d-design-2" src="https://github.com/user-attachments/assets/349eccf8-c004-4dc5-88e6-d01ee325df13" />
-
-
-## Design 3: Saxophone Reed  
-**Designed in OpenSCAD**
-
-<img width="832" height="489" alt="3d-design-3" src="https://github.com/user-attachments/assets/4d45b3ad-bfab-44c1-b5f7-ef4b6167255c" />
+Future developments of ChucKsplainer will explore  
+1) Abstract Syntax Tree (AST) embeddings for ChucK,  
+2) empirical evaluations of student learning outcomes through mixed-methods user studies, and  
+3) teaching style transfer from materials such as *Programming for Musicians and Digital Artists: Creating music with ChucK*.  
