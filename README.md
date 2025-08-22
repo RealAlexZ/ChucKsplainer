@@ -1,7 +1,5 @@
 # 3D Modeling of Musical Instruments
 
-This repository documents 3D-modeled musical instrument designs created using Rhinoceros 3D and OpenSCAD.
-
 ## Design 1: Teenage Erhu  
 **Designed in Rhinoceros 3D**
 
